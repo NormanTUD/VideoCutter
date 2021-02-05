@@ -101,10 +101,14 @@ if [[ -d $DIR ]]; then
 	if [[ -e $CUTIMAGE ]]; then
 		ls $DIR/*.mp4
 		for filename in $DIR/*.mp4; do
-			if [[ ! -e $(dirname $filename)/nointro_$(basename $filename) ]]; then
-				docut $filename
+			if [[ "$filename" =~ .*nointro.* ]]; then
+				echo "Not doing files that already are nointro"
 			else
-				echo "$(dirname $filename)/nointro_$(basename $filename) already exists"
+				if [[ ! -e $(dirname $filename)/nointro_$(basename $filename) ]]; then
+					docut $filename
+				else
+					echo "$(dirname $filename)/nointro_$(basename $filename) already exists"
+				fi
 			fi
 		done
 	else
