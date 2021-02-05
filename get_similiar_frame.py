@@ -1,8 +1,14 @@
 #!/usr/bin/python
 
+from __future__ import print_function
 import sys
 from PIL import Image
 import numpy as np
+from pprint import pprint
+from pathlib import Path
+
+def eprint(*args, **kwargs):
+    print(*args, file=sys.stderr, **kwargs)
 
 def avhash(im):
     if not isinstance(im, Image.Image):
@@ -21,26 +27,27 @@ def hamming(h1, h2):
     return h
 
 def phash_simmilarity(img1,img2):
-    
     hash1 = avhash(img1)
     hash2 = avhash(img2)
     dist = hamming(hash1, hash2)
     simm = (64 - dist) * 100 / 64
-    # print simm
-    # if not isinstance (img1,Image.Image):
-    #     img1 = Image.open(img1)
-    # if not isinstance(img2,Image.Image):
-    #     img2 = Image.open(img2)
-    # hash1 = imagehash.phash(img1)
-    # hash2 = imagehash.phash(img2)
-    # dist = hamming(hash2,hash1)
-    # simm = (64 - dist) * 100 / 64
     return simm
 
 if __name__ == '__main__':
-    if len(sys.argv) != 3:
-        print "Usage: %s img1 img2" % sys.argv[0]
+    if len(sys.argv) != 4:
+        print("Usage: %s threshold folder img2" % sys.argv[0])
     else:
-        img1 = sys.argv[1]
-        img2 = sys.argv[2]
-        print "%d" % (phash_simmilarity(img1,img2))
+        threshold = sys.argv[1]
+        baseimg = sys.argv[2]
+        folder = sys.argv[3]
+
+        pathlist = sorted(Path(folder).rglob('*.jpg'))
+        i = 1
+        for cutframe in pathlist:
+            percentage = phash_simmilarity(baseimg, cutframe)
+            eprint("%d: %s <-> %s -> %d%%" % (i, baseimg, cutframe, percentage))
+            if int(percentage) >= int(threshold):
+                print("%d" % (i))
+                sys.exit(0)
+            i = i + 1
+        sys.exit(1)

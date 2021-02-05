@@ -3,12 +3,17 @@
 
 INSTALL=0
 threshold=80
+maxintrotimesearch=300
 DIR=
 
 for i in "$@"; do
 	case $i in
 	    --threshold=*)
 	    threshold="${i#*=}"
+	    ;;
+
+	    --maxintrotimesearch=*)
+	    maxintrotimesearch="${i#*=}"
 	    ;;
 
 	    --dir=*)
@@ -40,25 +45,6 @@ function get_framerate {
 	echo $(mediainfo $1 | egrep "Frame rate *:" | head -n1 | sed -e 's/.*: //' | sed -e 's/\..* FPS//')
 }
 
-function get_img_difference {
-	img1=$1
-	img2=$2
-	#perl imgdiff.pl $img1 $img2
-	echo $(python hashes.py $img1 $img2)
-}
-
-function img_diff_close_enough {
-	img1=$1
-	img2=$2
-	img_diff=$(get_img_difference $img1 $img2)
-
-	if (( $(echo "$img_diff > $threshold" |bc -l) )); then
-		return 0
-	else
-		return 1
-	fi
-}
-
 function find_cut {
 	file=$1
 	tmpdir=$2
@@ -74,17 +60,19 @@ function find_cut {
 			if [[ ! -e $compareimg ]]; then
 				convert $CUTIMAGE -resize $toresizewidth $compareimg
 			fi
-		fi
-
-		if img_diff_close_enough $compareimg $thisfile; then
-			frameid=$(echo $thisfile | sed -e 's/.*\///' | sed -e 's/\.jpg$//')
 			break
 		fi
 	done
-	
-	CUTTIMESECONDS=$(echo "($frameid*10)/$FRAMERATE" | bc)
 
-	echo $CUTTIMESECONDS
+	frameid=$(python get_similiar_frame.py $threshold $compareimg $tmpdir)
+	
+	if [[ ! -z $frameid ]]; then
+		CUTTIMESECONDS=$(echo "($frameid*10)/$FRAMERATE" | bc)
+
+		echo $CUTTIMESECONDS
+	else
+		echo "NOTIMEFOUND"
+	fi
 }
 
 function docut {
@@ -94,12 +82,17 @@ function docut {
 	mkdir -p $tmpdir
 
 	if [[ ! -e "$tmpdir/00000001.jpg" ]]; then
-		ffmpeg -i $file -vf "select=not(mod(n\,10))" -vsync vfr $tmpdir/%08d.jpg
+		ffmpeg -i $file -vf "select=not(mod(n\,10))" -to $maxintrotimesearch -vsync vfr $tmpdir/%08d.jpg
 	fi
 
 	CUTTIME=$(find_cut $file $tmpdir)
 
-	ffmpeg -ss $CUTTIME  -i $file -vcodec copy -acodec copy $(dirname $file)/nointro_$(basename $file)
+	if [[ "$CUTTIME" == "NOTIMEFOUND" ]]; then
+		echo "No cut time found for $file"
+		sleep 5
+	else
+		ffmpeg -ss $CUTTIME  -i $file -vcodec copy -acodec copy $(dirname $file)/nointro_$(basename $file)
+	fi
 }
 
 if [[ -d $DIR ]]; then
