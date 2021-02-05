@@ -32,10 +32,12 @@ my $i = 1;
 my @default_color = get_colors($default);
 my ($default_r, $default_g, $default_b) = @default_color;
 
+my $max = int(qx(ls $folder/*.jpg | wc -l));
+
 foreach my $file (<$folder/*.jpg>) {
 	my @color = get_colors($file);
 	my ($r, $g, $b) = @color;
-	warn "$r $g $b\n";
+	warn "$i of max. $max: $r $g $b\n";
 	if(is_in_threshold($default_r, $r) && is_in_threshold($default_g, $g) && is_in_threshold($default_b, $b)) {
 		print "$i\n";
 		exit;
