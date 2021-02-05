@@ -1,29 +1,34 @@
 #!/bin/bash
 
-set -e
+#set -e
 
-INSTALL=0
+install=0
 threshold=90
 maxintrotimesearch=300
-nthframe=20
-DIR=
+nthframe=30
+dir=
 
 for i in "$@"; do
 	case $i in
 	    --threshold=*)
-	    threshold="${i#*=}"
+		    threshold="${i#*=}"
 	    ;;
 
 	    --maxintrotimesearch=*)
-	    maxintrotimesearch="${i#*=}"
+		    maxintrotimesearch="${i#*=}"
+	    ;;
+
+
+	    --nthframe=*)
+		    nthframe="${i#*=}"
 	    ;;
 
 	    --dir=*)
-	    DIR="${i#*=}"
+		    dir="${i#*=}"
 	    ;;
 
 	    --install)
-		    INSTALL=1
+		    install=1
 	    ;;
 
 	    --debug)
@@ -36,20 +41,20 @@ for i in "$@"; do
 	esac
 done
 
-if [[ "$INSTALL" == "1" ]]; then
-	sudo apt-get install python ffmpeg
+if [[ "$install " == "1" ]]; then
+	sudo apt-get install python ffmpeg perl imagemagick
 	sudo pip install imagehash
 fi
 
-CUTIMAGE="$DIR/cutimage.jpg" 
 
 function get_framerate {
 	echo $(mediainfo "$1" | egrep "Frame rate *:" | head -n1 | sed -e 's/.*: //' | sed -e 's/\..* FPS//')
 }
 
 function find_cut {
-	file=$1
-	tmpdir=$2
+	CUTIMAGE=$1
+	file=$2
+	tmpdir=$3
 
 	FRAMERATE=$(get_framerate "$file")
 
@@ -57,8 +62,8 @@ function find_cut {
 	compareimg=""
 	for thisfile in $tmpdir/*.jpg; do
 		if [[ -z $compareimg ]]; then
-			toresizewidth=$(identify -format '%wx%h' $thisfile)
-			compareimg=$DIR/cutimage_${toresizewidth}.jpg
+			toresizewidth=$(identify -format '%wx%h' "$thisfile")
+			compareimg=$dir/cutimage_${toresizewidth}.jpg
 			if [[ ! -e $compareimg ]]; then
 				convert $CUTIMAGE -resize $toresizewidth $compareimg
 			fi
@@ -79,34 +84,35 @@ function find_cut {
 }
 
 function docut {
-	file=$1
+	CUTIMAGE=$1
+	file=$2
 
-	tmpdir=tmp/$(md5sum $file | sed -e 's/ .*//')/
+	tmpdir=tmp/$(md5sum "$file" | sed -e 's/ .*//')/
 	mkdir -p $tmpdir
 
 	if [[ ! -e "$tmpdir/00000001.jpg" ]]; then
 		ffmpeg -i "$file" -vf "select=not(mod(n\,$nthframe))" -to $maxintrotimesearch -vsync vfr $tmpdir/%08d.jpg
 	fi
 
-	CUTTIME=$(find_cut "$file" "$tmpdir")
+	CUTTIME=$(find_cut "$CUTIMAGE" "$file" "$tmpdir")
 
 	if [[ "$CUTTIME" == "NOTIMEFOUND" ]]; then
 		echo "No cut time found for $file"
-		sleep 5
 	else
 		toname=$(dirname "$file")/nointro_$(basename "$file")
 		ffmpeg -ss $CUTTIME  -i "$file" -vcodec copy -acodec copy "$toname"
 	fi
 }
 
-if [[ -d $DIR ]]; then
+if [[ -d $dir ]]; then
+	CUTIMAGE="$dir/cutimage.jpg" 
 	if [[ -e $CUTIMAGE ]]; then
-		find $DIR -type f -name "*.mp4" -print0 | while IFS= read -r -d '' filename; do
+		IFS=$'\n'; for filename in $(ls $dir/*.mp4); do
 			if [[ "$filename" =~ .*nointro.* ]]; then
 				echo "Not doing files that already are nointro"
 			else
 				if [[ ! -e $(dirname "$filename")/nointro_$(basename "$filename") ]]; then
-					docut "$filename"
+					docut "$CUTIMAGE" "$filename"
 				else
 					echo "$(dirname "$filename")/nointro_$(basename "$filename") already exists"
 				fi
@@ -116,5 +122,5 @@ if [[ -d $DIR ]]; then
 		echo "$CUTIMAGE not found"
 	fi
 else
-	echo "$DIR not found"
+	echo "$dir not found"
 fi
