@@ -30,9 +30,8 @@ for i in "$@"; do
 done
 
 if [[ "$INSTALL" == "1" ]]; then
-	sudo apt-get install python
+	sudo apt-get install python ffmpeg
 	sudo pip install imagehash
-	sudo apt-get install imagemagick findimagedupes ffmpeg
 fi
 
 CUTIMAGE="$DIR/cutimage.jpg" 
@@ -90,14 +89,6 @@ function find_cut {
 
 function docut {
 	file=$1
-
-	#backupfilename=$file
-	#i=0
-	#while [[ -e $backupfilename ]]; do
-	#	i=$(($i + 1))
-	#	backupfilename=$file.$i
-	#done
-	#cp $file $backupfilename
 
 	tmpdir=tmp/$(md5sum $file | sed -e 's/ .*//')/
 	mkdir -p $tmpdir
