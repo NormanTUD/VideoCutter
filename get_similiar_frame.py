@@ -43,11 +43,20 @@ if __name__ == '__main__':
 
         pathlist = sorted(Path(folder).rglob('*.jpg'))
         i = 1
+
+        max_sim_percent = 0
+        max_sim_frame = 0
+
         for cutframe in pathlist:
             percentage = phash_simmilarity(baseimg, cutframe)
+            if max_sim_percent < percentage:
+                max_sim_percent = percentage
+                max_sim_frame = i
             eprint("%d: %s <-> %s -> %d%%" % (i, baseimg, cutframe, percentage))
             if int(percentage) >= int(threshold):
                 print("%d" % (i))
                 sys.exit(0)
             i = i + 1
+
+        print("%d" % (max_sim_frame))
         sys.exit(1)

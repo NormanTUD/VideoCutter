@@ -2,8 +2,9 @@
 
 
 INSTALL=0
-threshold=80
+threshold=90
 maxintrotimesearch=300
+nthframe=20
 DIR=
 
 for i in "$@"; do
@@ -64,10 +65,11 @@ function find_cut {
 		fi
 	done
 
-	frameid=$(python get_similiar_frame.py $threshold $compareimg $tmpdir)
+	#frameid=$(python get_similiar_frame.py $threshold $compareimg $tmpdir)
+	frameid=$(perl compare_images.pl $threshold $compareimg $tmpdir)
 	
 	if [[ ! -z $frameid ]]; then
-		CUTTIMESECONDS=$(echo "($frameid*10)/$FRAMERATE" | bc)
+		CUTTIMESECONDS=$(echo "($frameid*$nthframe)/$FRAMERATE" | bc)
 
 		echo $CUTTIMESECONDS
 	else
@@ -82,7 +84,7 @@ function docut {
 	mkdir -p $tmpdir
 
 	if [[ ! -e "$tmpdir/00000001.jpg" ]]; then
-		ffmpeg -i $file -vf "select=not(mod(n\,10))" -to $maxintrotimesearch -vsync vfr $tmpdir/%08d.jpg
+		ffmpeg -i $file -vf "select=not(mod(n\,$nthframe))" -to $maxintrotimesearch -vsync vfr $tmpdir/%08d.jpg
 	fi
 
 	CUTTIME=$(find_cut $file $tmpdir)
@@ -99,10 +101,10 @@ if [[ -d $DIR ]]; then
 	if [[ -e $CUTIMAGE ]]; then
 		ls $DIR/*.mp4
 		for filename in $DIR/*.mp4; do
-			if [[ ! -e $(dirname $file)/nointro_$(basename $file) ]]; then
+			if [[ ! -e $(dirname $filename)/nointro_$(basename $filename) ]]; then
 				docut $filename
 			else
-				echo "$(dirname $file)/nointro_$(basename $file) already exists"
+				echo "$(dirname $filename)/nointro_$(basename $filename) already exists"
 			fi
 		done
 	else
