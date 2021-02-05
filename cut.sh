@@ -1,5 +1,6 @@
 #!/bin/bash
 
+set -e
 
 INSTALL=0
 threshold=90
@@ -43,14 +44,14 @@ fi
 CUTIMAGE="$DIR/cutimage.jpg" 
 
 function get_framerate {
-	echo $(mediainfo $1 | egrep "Frame rate *:" | head -n1 | sed -e 's/.*: //' | sed -e 's/\..* FPS//')
+	echo $(mediainfo "$1" | egrep "Frame rate *:" | head -n1 | sed -e 's/.*: //' | sed -e 's/\..* FPS//')
 }
 
 function find_cut {
 	file=$1
 	tmpdir=$2
 
-	FRAMERATE=$(get_framerate $file)
+	FRAMERATE=$(get_framerate "$file")
 
 	frameid=0
 	compareimg=""
@@ -84,30 +85,30 @@ function docut {
 	mkdir -p $tmpdir
 
 	if [[ ! -e "$tmpdir/00000001.jpg" ]]; then
-		ffmpeg -i $file -vf "select=not(mod(n\,$nthframe))" -to $maxintrotimesearch -vsync vfr $tmpdir/%08d.jpg
+		ffmpeg -i "$file" -vf "select=not(mod(n\,$nthframe))" -to $maxintrotimesearch -vsync vfr $tmpdir/%08d.jpg
 	fi
 
-	CUTTIME=$(find_cut $file $tmpdir)
+	CUTTIME=$(find_cut "$file" "$tmpdir")
 
 	if [[ "$CUTTIME" == "NOTIMEFOUND" ]]; then
 		echo "No cut time found for $file"
 		sleep 5
 	else
-		ffmpeg -ss $CUTTIME  -i $file -vcodec copy -acodec copy $(dirname $file)/nointro_$(basename $file)
+		toname=$(dirname "$file")/nointro_$(basename "$file")
+		ffmpeg -ss $CUTTIME  -i "$file" -vcodec copy -acodec copy "$toname"
 	fi
 }
 
 if [[ -d $DIR ]]; then
 	if [[ -e $CUTIMAGE ]]; then
-		ls $DIR/*.mp4
-		for filename in $DIR/*.mp4; do
+		find $DIR -type f -name "*.mp4" -print0 | while IFS= read -r -d '' filename; do
 			if [[ "$filename" =~ .*nointro.* ]]; then
 				echo "Not doing files that already are nointro"
 			else
-				if [[ ! -e $(dirname $filename)/nointro_$(basename $filename) ]]; then
-					docut $filename
+				if [[ ! -e $(dirname "$filename")/nointro_$(basename "$filename") ]]; then
+					docut "$filename"
 				else
-					echo "$(dirname $filename)/nointro_$(basename $filename) already exists"
+					echo "$(dirname "$filename")/nointro_$(basename "$filename") already exists"
 				fi
 			fi
 		done
