@@ -1,41 +1,81 @@
 #!/bin/bash
 
+echoerr() {
+	echo "$@" 1>&2
+}
+
+function red_text {
+	echoerr -e "\e[31m$1\e[0m"
+}
+
+function green_text {
+	echoerr -e "\e[92m$1\e[0m"
+}
+
+function debug_code {
+	echoerr -e "\e[93m$1\e[0m"
+}
+
+
 install=0
 threshold=90
 maxintrotimesearch=300
 nthframe=30
 dir=
 
+function show_help {
+	echo "This script cuts intros from video files on a folder on the basis of a frame you have to provide which signifies where the intro ends.
+Save this frame in the folder given to --dir as "cutimage.jpg". Frames by all *.mp4-files will be checked for similiarity to that frame.
+The first one that's --threshold in color* will be the frame where the video will be cut.
+
+*threshold right now only determined by vector distance to the zero position (all black) of the whole image as an average color.
+
+--threshold=$threshold					Threshold of similiarity between the cutimage and a frame from the video to be cut
+--maxintrotimesearch=$maxintrotimesearch			The maximum number of seconds in the video where a cut is expected to be
+--nthframe=$nthframe					The script only looks at every nthframe to determine the cut (saves a lot of time, but may lead to skipping
+						an intro; if no intro is found with --nthframe, it will take every frame by default)
+--dir=folder					The folder where the mp4 files and the cutimage.jpg must lie
+--install					Installs the neccessary dependencies
+--debug						Enables set -ex
+--help						This help"
+}
+
 for i in "$@"; do
 	case $i in
-	    --threshold=*)
-		    threshold="${i#*=}"
-	    ;;
+		--threshold=*)
+			threshold="${i#*=}"
+			;;
 
-	    --maxintrotimesearch=*)
-		    maxintrotimesearch="${i#*=}"
-	    ;;
+		--maxintrotimesearch=*)
+			maxintrotimesearch="${i#*=}"
+			;;
 
+		--nthframe=*)
+			nthframe="${i#*=}"
+			;;
 
-	    --nthframe=*)
-		    nthframe="${i#*=}"
-	    ;;
+		--dir=*)
+			dir="${i#*=}"
+			;;
 
-	    --dir=*)
-		    dir="${i#*=}"
-	    ;;
+		--install)
+			install=1
+			;;
 
-	    --install)
-		    install=1
-	    ;;
+		--debug)
+			set -ex
+			;;
 
-	    --debug)
-		    set -ex
-	    ;;
+		--help)
+			show_help
+			exit
+			;;
 
-	    *)
-		    # unknown option
-	    ;;
+		*)
+			red_text "Unknown option $i"
+			show_help
+			exit
+			;;
 	esac
 done
 
@@ -101,15 +141,16 @@ function docut {
 
 	if [[ "$CUTTIME" == "NOTIMEFOUND" ]]; then
 		if [[ $thisnthframe == 1 ]]; then
-			echo "No cut time found for $file"
+			red_text "No cut time found for $file"
 			echo "$file" >> $dir/missing_files
 		else
-			echo "No cut time found for $file, trying again with 3-frame-granularity"
+			red_text "No cut time found for $file, trying again with 3-frame-granularity"
 			docut "$CUTIMAGE" "$file" 3
 		fi
 	else
 		toname=$(dirname "$file")/nointro_$(basename "$file")
 		ffmpeg -ss $CUTTIME  -i "$file" -vcodec copy -acodec copy "$toname"
+		green_text "OK: $file was cut from $CUTTIME on and saved to $toname"
 	fi
 }
 
@@ -118,18 +159,18 @@ if [[ -d $dir ]]; then
 	if [[ -e $CUTIMAGE ]]; then
 		IFS=$'\n'; for filename in $(ls $dir/*.mp4); do
 			if [[ "$filename" =~ .*nointro.* ]]; then
-				echo "Not doing files that already are nointro"
+				green_text "Not doing files that already are nointro"
 			else
 				if [[ ! -e $(dirname "$filename")/nointro_$(basename "$filename") ]]; then
 					docut "$CUTIMAGE" "$filename"
 				else
-					echo "$(dirname "$filename")/nointro_$(basename "$filename") already exists"
+					green_text "$(dirname "$filename")/nointro_$(basename "$filename") already exists"
 				fi
 			fi
 		done
 	else
-		echo "$CUTIMAGE not found"
+		red_text "$CUTIMAGE not found"
 	fi
 else
-	echo "$dir not found"
+	red_text "$dir not found"
 fi
