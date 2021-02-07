@@ -16,12 +16,12 @@ function debug_code {
 	echoerr -e "\e[93m$1\e[0m"
 }
 
-
 install=0
 threshold=90
 maxintrotimesearch=300
 nthframe=30
 dir=
+algorithm=1x1avgcolor
 
 function show_help {
 	echo "This script cuts intros from video files on a folder on the basis of a frame you have to provide which signifies where the intro ends.
@@ -37,7 +37,8 @@ The first one that's --threshold in color* will be the frame where the video wil
 --dir=folder					The folder where the mp4 files and the cutimage.jpg must lie
 --install					Installs the neccessary dependencies
 --debug						Enables set -ex
---help						This help"
+--help						This help
+--algorithm=1x1avgcolor,hamming			Which algorithm to use"
 }
 
 for i in "$@"; do
@@ -48,6 +49,10 @@ for i in "$@"; do
 
 		--maxintrotimesearch=*)
 			maxintrotimesearch="${i#*=}"
+			;;
+
+		--algorithm=*)
+			algorithm="${i#*=}"
 			;;
 
 		--nthframe=*)
@@ -79,6 +84,12 @@ for i in "$@"; do
 	esac
 done
 
+
+if [[ ! ( $algorithm == "hamming" || $algorithm == "1x1avgcolor" ) ]]; then
+	echoerr "Algorithm name $algorithm not found"
+	exit 1
+fi
+
 if [[ "$install " == "1" ]]; then
 	sudo apt-get install python ffmpeg perl imagemagick
 	sudo pip install imagehash
@@ -97,7 +108,7 @@ function find_cut {
 
 	FRAMERATE=$(get_framerate "$file")
 
-	frameid=0
+	frameid=""
 	compareimg=""
 	for thisfile in $tmpdir/*.jpg; do
 		if [[ -z $compareimg ]]; then
@@ -110,8 +121,14 @@ function find_cut {
 		fi
 	done
 
-	#frameid=$(python get_similiar_frame.py $threshold $compareimg $tmpdir)
-	frameid=$(perl compare_images.pl $threshold $compareimg $tmpdir)
+	if [[ $algorithm == "hamming" ]]; then
+		frameid=$(python get_similiar_frame.py $threshold $compareimg $tmpdir)
+	elif [[ $algorithm == "1x1avgcolor" ]]; then
+		frameid=$(perl compare_images.pl $threshold $compareimg $tmpdir)
+	else
+		echoerr "Algorithm name $algorithm not found"
+		exit 1
+	fi
 	
 	if [[ ! -z $frameid ]]; then
 		CUTTIMESECONDS=$(echo "($frameid*$thisnthframe)/$FRAMERATE" | bc)
