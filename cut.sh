@@ -22,7 +22,7 @@ function sec2time () {
 
 install=0
 threshold=90
-minintrotimesearch=5
+minintrotimesearch=0
 maxintrotimesearch=300
 nthframe=30
 dir=
