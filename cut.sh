@@ -145,7 +145,7 @@ function find_cut {
 		frameid=$(perl compare_images.pl $threshold $compareimg $tmpdir)
 	elif [[ $algorithm == "findimagedupes" ]]; then
 		cp $CUTIMAGE $tmpdir/cutimage.jpg
-		frameid=$(for i in $(find $tmpdir \( -name '*.jpg' -o -name '*.png' \) -print0 | findimagedupes -0 - | grep cutimage); do echo $(basename $i); done | egrep -v "^\s*$" | grep -v "cutimage.jpg" | sort -n | sed -e 's/\.jpg//' | head -n1)
+		frameid=$(for i in $(find $tmpdir \( -name '*.jpg' \) -print0 | findimagedupes -0 - | grep cutimage); do echo $(basename $i); done | egrep -v "^\s*$" | grep -v "cutimage.jpg" | sort -n | sed -e 's/\.jpg//' | head -n1)
 		rm $tmpdir/cutimage.jpg
 	else
 		echoerr "Algorithm name $algorithm not found"
