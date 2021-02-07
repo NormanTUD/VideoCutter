@@ -16,12 +16,18 @@ function debug_code {
 	echoerr -e "\e[93m$1\e[0m"
 }
 
+function sec2time () {
+	date -u -d "0+$1sec" +%T.%3N
+}
+
 install=0
 threshold=90
+minintrotimesearch=5
 maxintrotimesearch=300
 nthframe=30
 dir=
-algorithm=1x1avgcolor
+algorithm=findimagedupes
+secondsback=0
 
 function show_help {
 	echo "This script cuts intros from video files on a folder on the basis of a frame you have to provide which signifies where the intro ends.
@@ -31,20 +37,32 @@ The first one that's --threshold in color* will be the frame where the video wil
 *threshold right now only determined by vector distance to the zero position (all black) of the whole image as an average color.
 
 --threshold=$threshold					Threshold of similiarity between the cutimage and a frame from the video to be cut
---maxintrotimesearch=$maxintrotimesearch			The maximum number of seconds in the video where a cut is expected to be
+--minintrotimesearch=$minintrotimesearch		Minimal number of seconds to search
+--maxintrotimesearch=$maxintrotimesearch		The maximum number of seconds in the video where a cut is expected to be
 --nthframe=$nthframe					The script only looks at every nthframe to determine the cut (saves a lot of time, but may lead to skipping
-						an intro; if no intro is found with --nthframe, it will take every frame by default)
---dir=folder					The folder where the mp4 files and the cutimage.jpg must lie
---install					Installs the neccessary dependencies
---debug						Enables set -ex
---help						This help
---algorithm=1x1avgcolor,hamming			Which algorithm to use"
+							an intro; if no intro is found with --nthframe, it will take every frame by default)
+--dir=folder						The folder where the mp4 files and the cutimage.jpg must lie
+--install						Installs the neccessary dependencies
+--debug							Enables set -ex
+--help							This help
+--algorithm=1x1avgcolor,hamming,			Which algorithm to use
+            findimagedupes
+--secondsback=0						Number of seconds to go back before cutting"
 }
 
 for i in "$@"; do
 	case $i in
 		--threshold=*)
 			threshold="${i#*=}"
+			;;
+
+		--secondsback=*)
+			secondsback="${i#*=}"
+			;;
+
+
+		--minintrotimesearch=*)
+			minintrotimesearch="${i#*=}"
 			;;
 
 		--maxintrotimesearch=*)
@@ -85,13 +103,13 @@ for i in "$@"; do
 done
 
 
-if [[ ! ( $algorithm == "hamming" || $algorithm == "1x1avgcolor" ) ]]; then
+if [[ ! ( $algorithm == "hamming" || $algorithm == "1x1avgcolor" || $algorithm == "findimagedupes" ) ]]; then
 	echoerr "Algorithm name $algorithm not found"
 	exit 1
 fi
 
 if [[ "$install " == "1" ]]; then
-	sudo apt-get install python ffmpeg perl imagemagick
+	sudo apt-get install python ffmpeg perl imagemagick findimagedupes bc
 	sudo pip install imagehash
 fi
 
@@ -125,6 +143,10 @@ function find_cut {
 		frameid=$(python get_similiar_frame.py $threshold $compareimg $tmpdir)
 	elif [[ $algorithm == "1x1avgcolor" ]]; then
 		frameid=$(perl compare_images.pl $threshold $compareimg $tmpdir)
+	elif [[ $algorithm == "findimagedupes" ]]; then
+		cp $CUTIMAGE $tmpdir/cutimage.jpg
+		frameid=$(for i in $(find $tmpdir \( -name '*.jpg' -o -name '*.png' \) -print0 | findimagedupes -0 - | grep cutimage); do echo $(basename $i); done | egrep -v "^\s*$" | grep -v "cutimage.jpg" | sort -n | sed -e 's/\.jpg//' | head -n1)
+		rm $tmpdir/cutimage.jpg
 	else
 		echoerr "Algorithm name $algorithm not found"
 		exit 1
@@ -132,6 +154,7 @@ function find_cut {
 	
 	if [[ ! -z $frameid ]]; then
 		CUTTIMESECONDS=$(echo "($frameid*$thisnthframe)/$FRAMERATE" | bc)
+		CUTTIMESECONDS=$(echo "$CUTTIMESECONDS-$minintrotimesearch-$secondsback" | bc)
 
 		echo $CUTTIMESECONDS
 	else
@@ -151,7 +174,7 @@ function docut {
 	mkdir -p $tmpdir
 
 	if [[ ! -e "$tmpdir/00000001.jpg" ]]; then
-		ffmpeg -i "$file" -vf "select=not(mod(n\,$thisnthframe))" -to $maxintrotimesearch -vsync vfr $tmpdir/%08d.jpg
+		ffmpeg -i "$file" -vf "select=not(mod(n\,$thisnthframe))" -ss $(sec2time $minintrotimesearch) -to $maxintrotimesearch -vsync vfr $tmpdir/%08d.jpg
 	fi
 
 	CUTTIME=$(find_cut "$CUTIMAGE" "$file" "$tmpdir" "$thisnthframe")
