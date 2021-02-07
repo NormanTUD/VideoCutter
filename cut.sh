@@ -174,3 +174,5 @@ if [[ -d $dir ]]; then
 else
 	red_text "$dir not found"
 fi
+
+green_text "Done. Took $SECONDS seconds."
